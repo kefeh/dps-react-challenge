@@ -15,12 +15,9 @@ export const fetchByLocality = async (name: string): Promise<LocalityInfo[]> => 
 };
 
 export const fetchByPlz = async (plz: string): Promise<LocalityInfo[]> => {
-  const formattedPlz = formatPlzForSearch(plz);
-  const response = await fetch(`${BASE_URL}?postalCode=${encodeURIComponent(formattedPlz)}`);
+  if (!plz) return [];
+  const response = await fetch(`${BASE_URL}?postalCode=${encodeURIComponent(plz)}`);
   if (!response.ok) throw new Error('Failed to fetch data');
   return response.json();
 };
 
-const formatPlzForSearch = (plz: string): string => {
-  return (plz.length < 5) ? "^" + plz : plz;
-};
