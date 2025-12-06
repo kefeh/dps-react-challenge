@@ -1,54 +1,79 @@
 import { useState, useEffect } from 'react';
 import { useDebounce } from './useDebounce';
 import { fetchByLocality, fetchByPlz } from '../services/plzApi';
+interface AddressData {
+  locality: string;
+  plz: string;
+  availablePlzs: string[];
+}
+
+interface State {
+  data: AddressData;
+  lastEdited: 'locality' | 'plz' | null;
+  loading: boolean;
+  error: string | null;
+}
 
 export const useAddressForm = () => {
+  const [state, setState] = useState<State>({
+    data: {
+      locality: '',
+      plz: '',
+      availablePlzs: [],
+    },
+    lastEdited: null,
+    loading: false,
+    error: null,
+  });
 
-  const [locality, setLocality] = useState('');
-  const [plz, setPlz] = useState('');
-
-  const [availablePlzs, setAvailablePlzs] = useState<string[]>([]);
-
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const debouncedLocality = useDebounce(locality, 1000);
-  const debouncedPlz = useDebounce(plz, 1000);
-
-  // Track "Who triggered the update?" to prevent loops
-  const [lastEdited, setLastEdited] = useState<'locality' | 'plz' | null>(null);
+  const debouncedLocality = useDebounce(state.data.locality, 1000);
+  const debouncedPlz = useDebounce(state.data.plz, 1000);
 
   const withLoading = async (asyncFn: () => Promise<void>) => {
-    setLoading(true);
-    setError(null);
+    setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
       await asyncFn();
     } catch (err) {
-      setError('API Error');
+      setState((prev) => ({ ...prev, error: 'API Error' }));
     } finally {
-      setLoading(false);
+      setState((prev) => ({ ...prev, loading: false }));
     }
   };
 
   useEffect(() => {
-    if (lastEdited !== 'locality' || !debouncedLocality) return;
+    if (state.lastEdited !== 'locality' || !debouncedLocality) return;
 
     const loadLocalityData = async () => {
-      setAvailablePlzs([]);
+      setState((prev) => ({
+        ...prev,
+        data: { ...prev.data, availablePlzs: [] }
+      }));
+
       const data = await fetchByLocality(debouncedLocality);
 
       if (data.length === 0) {
-        setError('City not found');
+        setState((prev) => ({ ...prev, error: 'City not found' }));
       } else if (data.length === 1) {
-        // Exact match
-        setPlz(data[0].postalCode);
+        setState((prev) => ({
+          ...prev,
+          data: { ...prev.data, plz: data[0].postalCode }
+        }));
       } else {
-        const uniquePlzs = Array.from(new Set(data.map(item => item.postalCode))).sort();
-        setAvailablePlzs(uniquePlzs);
-        // If the current PLZ isn't in the new list, clear it or set first
-        if (!uniquePlzs.includes(plz)) {
-          setPlz('');
-        }
+        const uniquePlzs = Array.from(new Set(data.map((item) => item.postalCode))).sort();
+
+        setState((prev) => {
+          const currentPlz = prev.data.plz;
+          const newPlz = uniquePlzs.includes(currentPlz) ? currentPlz : '';
+
+          return {
+            ...prev,
+            data: {
+              ...prev.data,
+              availablePlzs: uniquePlzs,
+              plz: newPlz
+            }
+          };
+        });
       }
     };
 
@@ -56,17 +81,28 @@ export const useAddressForm = () => {
   }, [debouncedLocality]);
 
   useEffect(() => {
-    // We only fetch if user typed a full PLZ and we aren't in dropdown mode
-    if (lastEdited !== 'plz' || debouncedPlz.length !== 5 || availablePlzs.length > 0) return;
+    if (
+      state.lastEdited !== 'plz' ||
+      debouncedPlz.length !== 5 ||
+      state.data.availablePlzs.length > 0
+    ) {
+      return;
+    }
 
     const loadPlzData = async () => {
-        const data = await fetchByPlz(debouncedPlz);
-        if (data.length > 0) {
-          setLocality(data[0].name);
-        } else {
-          setLocality('');
-          setError('Invalid Postal Code');
-        }
+      const data = await fetchByPlz(debouncedPlz);
+      if (data.length > 0) {
+        setState((prev) => ({
+          ...prev,
+          data: { ...prev.data, locality: data[0].name }
+        }));
+      } else {
+        setState((prev) => ({
+          ...prev,
+          error: 'Invalid Postal Code',
+          data: { ...prev.data, locality: '' }
+        }));
+      }
     };
 
     withLoading(loadPlzData);
@@ -74,45 +110,53 @@ export const useAddressForm = () => {
 
 
   const handleLocalityChange = (val: string) => {
-    if (val === '') {
-      setAvailablePlzs([]);
-      setLoading(false);
-    }
-    setLocality(val);
-    setLastEdited('locality');
+    setState((prev) => ({
+      ...prev,
+      lastEdited: 'locality',
+      error: null,
+      data: {
+        ...prev.data,
+        locality: val,
+        availablePlzs: val === '' ? [] : prev.data.availablePlzs,
+        plz: val === '' ? '' : prev.data.plz,
+      }
+    }));
   };
 
   const validatePlz = (val: string): string | null => {
-    // Allow only digits
-    if (!/^\d*$/.test(val)) {
-      return 'Postal code must only contain digits.';
-    }
+    if (!/^\d*$/.test(val)) return 'Postal code must only contain digits.';
     return null;
   };
 
   const handlePlzChange = (val: string) => {
-    const error = validatePlz(val);
-    if (error) {
-      setError(error);
-      setLastEdited('plz');
+    const validationError = validatePlz(val);
+
+    if (validationError) {
+      setState((prev) => ({
+        ...prev,
+        lastEdited: 'plz',
+        error: validationError
+      }));
       return;
-    } else {
-      setError(null);
     }
-    setPlz(val);
-    if (availablePlzs.length === 0) {
-      setLastEdited('plz');
-    }
+
+    setState((prev) => ({
+      ...prev,
+      lastEdited: prev.data.availablePlzs.length === 0 ? 'plz' : prev.lastEdited,
+      error: null,
+      data: {
+        ...prev.data,
+        plz: val
+      }
+    }));
   };
 
   return {
-    locality,
-    plz,
-    availablePlzs,
-    loading,
-    error,
-    lastEdited,
+    ...state,
+    locality: state.data.locality,
+    plz: state.data.plz,
+    availablePlzs: state.data.availablePlzs,
     handleLocalityChange,
-    handlePlzChange
+    handlePlzChange,
   };
 };
