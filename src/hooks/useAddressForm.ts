@@ -1,21 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useDebounce } from './useDebounce';
+import { AddressState, LastEdited } from '../types/address';
+import { validatePlzFormat } from '../utils/validators';
 import { fetchByLocality, fetchByPlz } from '../services/plzApi';
-interface AddressData {
-  locality: string;
-  plz: string;
-  availablePlzs: string[];
-}
-
-interface State {
-  data: AddressData;
-  lastEdited: 'locality' | 'plz' | null;
-  loading: boolean;
-  error: string | null;
-}
 
 export const useAddressForm = () => {
-  const [state, setState] = useState<State>({
+  const [state, setState] = useState<AddressState>({
     data: {
       locality: '',
       plz: '',
@@ -41,7 +31,7 @@ export const useAddressForm = () => {
   };
 
   useEffect(() => {
-    if (state.lastEdited !== 'locality' || !debouncedLocality) return;
+    if (state.lastEdited !== LastEdited.Locality || !debouncedLocality) return;
 
     const loadLocalityData = async () => {
       setState((prev) => ({
@@ -82,7 +72,7 @@ export const useAddressForm = () => {
 
   useEffect(() => {
     if (
-      state.lastEdited !== 'plz' ||
+      state.lastEdited !== LastEdited.Plz ||
       debouncedPlz.length !== 5 ||
       state.data.availablePlzs.length > 0
     ) {
@@ -112,7 +102,7 @@ export const useAddressForm = () => {
   const handleLocalityChange = (val: string) => {
     setState((prev) => ({
       ...prev,
-      lastEdited: 'locality',
+      lastEdited: LastEdited.Locality,
       error: null,
       data: {
         ...prev.data,
@@ -123,18 +113,13 @@ export const useAddressForm = () => {
     }));
   };
 
-  const validatePlz = (val: string): string | null => {
-    if (!/^\d*$/.test(val)) return 'Postal code must only contain digits.';
-    return null;
-  };
-
   const handlePlzChange = (val: string) => {
-    const validationError = validatePlz(val);
+    const validationError = validatePlzFormat(val);
 
     if (validationError) {
       setState((prev) => ({
         ...prev,
-        lastEdited: 'plz',
+        lastEdited: LastEdited.Plz,
         error: validationError
       }));
       return;
@@ -142,7 +127,7 @@ export const useAddressForm = () => {
 
     setState((prev) => ({
       ...prev,
-      lastEdited: prev.data.availablePlzs.length === 0 ? 'plz' : prev.lastEdited,
+      lastEdited: prev.data.availablePlzs.length === 0 ? LastEdited.Plz : prev.lastEdited,
       error: null,
       data: {
         ...prev.data,

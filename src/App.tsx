@@ -1,5 +1,6 @@
 import { InputField } from './components/InputField';
 import { useAddressForm } from './hooks/useAddressForm';
+import { LastEdited } from './types/address';
 
 function App() {
   const {
@@ -23,9 +24,9 @@ function App() {
             label="Locality (City)"
             placeholder="e.g. Berlin"
             value={locality}
-            error={lastEdited === 'locality' ? (error ?? undefined) : undefined}
+            error={lastEdited === LastEdited.Locality ? (error ?? undefined) : undefined}
             onChange={(e) => handleLocalityChange(e.target.value)}
-            isLoading={lastEdited === 'plz' ? loading : false}
+            isLoading={lastEdited === LastEdited.Plz ? loading : false}
           />
           {availablePlzs.length > 0 ? (
             <>
@@ -35,7 +36,7 @@ function App() {
                 className="w-full p-2"
                 value={plz}
                 onChange={(e) => handlePlzChange(e.target.value)}
-                disabled={lastEdited === 'locality' ? loading : false}
+                disabled={lastEdited === LastEdited.Locality ? loading : false}
               >
                 <option value="">Select a PLZ...</option>
                 {availablePlzs.map((code) => (
@@ -50,8 +51,8 @@ function App() {
               maxLength={5}
               value={plz}
               onChange={(e) => handlePlzChange(e.target.value)}
-              error={lastEdited === 'plz' ? (error ?? undefined) : undefined}
-              isLoading={lastEdited === 'locality' ? loading : false}
+              error={lastEdited === LastEdited.Plz ? (error ?? undefined) : undefined}
+              isLoading={lastEdited === LastEdited.Locality ? loading : false}
             />
           )}
         </form>
